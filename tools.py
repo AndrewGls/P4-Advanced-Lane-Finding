@@ -32,10 +32,70 @@ def undistort_img(img):
     return cv2.undistort(img, mtx, dist, None, mtx)
 
 
+
+#
+# Returns source points for perspective transformation:
+# 4 corners used to transform to bird view.
+# Returns: numpy array of 4 2D points.
+def birdview_corners():
+    # for straight_lines1.jpg
+    corners = np.float32([[190,720],   # bottom-left
+                          [592,450],   # top-left
+                          [689,450],   # top-right
+                          [1120,720]]) # bottom-right
+    
+    # for straight_lines2.jpg
+#    corners = np.float32([[205,720],   # bottom-left
+#                          [592-0,450],   # top-left
+#                          [691+0,450],   # top-right
+#                          [1124,720]]) # bottom-right  
+    return corners
+
+    
+    
+#
+# Warps image from camera view to bird view or back to camera view.
+# Params: img - source image
+# Returns wrapped image and perspective transformation matrix M.
+#
+def warp_img_M(img, bird_view = True):
+    src = birdview_corners() # trapezoid in camera space
+    
+    offset = (140,0) # left/right offset
+    
+    dst_top_left  = np.array([src[0,0], 0])
+    dst_top_right = np.array([src[3,0], 0])
+    
+    # rectangle in bird-view space
+    dst = np.float32([src[0]+offset,        # bottom-left 
+                      dst_top_left+offset,  # top-left
+                      dst_top_right-offset, # top-right
+                      src[3]-offset])       # bottom-right    
+    if bird_view:
+        M = cv2.getPerspectiveTransform(src, dst)
+    else:
+        M = cv2.getPerspectiveTransform(dst, src)
+    
+    size_wh = (img.shape[1], img.shape[0])
+    warped = cv2.warpPerspective(img, M, size_wh , flags=cv2.INTER_LINEAR)
+    
+    return warped, M
+    
+    
+#
+# Warps image from camera view to bird view or back to camera view.
+# Params: img - source image
+# Returns wrapped image.
+#
+def warp_img(img, bird_view = True):
+    warp,_ = warp_img_M(img, bird_view)
+    return warp
+
+    
 #
 # Image binarization.
 # Param: img - source RGB image
-# Returns: binary image 
+# Returns: binary image (Gray,Gray,Gray) and channels for visualization 
 #
 def binarize(img,
              s_thresh=(90, 255),
@@ -78,11 +138,70 @@ def binarize(img,
     # be beneficial to replace this channel with something else.
 #    color_binary = np.dstack(( np.zeros_like(sxbinary), sxbinary, s_binary))
     color_binary = np.dstack((l_binary, sxbinary, s_binary))
-    binary = np.dstack(( binary, binary, binary))
+    binary = (np.dstack(( binary, binary, binary))*255.).astype('uint8')
     
-    return color_binary, binary  
+    return binary, color_binary
 
+    
+#
+# Image binarization.
+# Params: source RGB image.
+# Returns: binarized image as (Gray,Gray,Gray)
+#
+def binarize_img(img):
+    binary,_ = binarize(img)
+    return binary
 
+    
+
+#
+# Applies an image mask to source image.
+# Returns: masked image.
+#
+def region_of_interest(img, vertices):
+    """
+    Applies an image mask.
+    
+    Only keeps the region of the image defined by the polygon
+    formed from `vertices`. The rest of the image is set to black.
+    """    
+    #defining a blank mask to start with
+    mask = np.zeros_like(img)   
+    
+    #defining a 3 channel or 1 channel color to fill the mask with depending on the input image
+    if len(img.shape) > 2:
+        channel_count = img.shape[2]  # i.e. 3 or 4 depending on your image
+        ignore_mask_color = (255,) * channel_count
+    else:
+        ignore_mask_color = 255
+        
+    #filling pixels inside the polygon defined by "vertices" with the fill color    
+    cv2.fillPoly(mask, vertices, ignore_mask_color)
+    
+    #returning the image only where mask pixels are nonzero
+    masked_image = cv2.bitwise_and(img, mask)
+    return masked_image
+
+    
+    
+#
+# Applies ROI mask to source image to mask noise
+#  at the left and right sides of frame.
+# Params: img - source image.
+# Returns: masked image
+#   
+def ROI(img):
+    shape = img.shape
+    vertices = np.array([[(0,0),(shape[1],0),(shape[1],0),(7*shape[1]/8,shape[0]),
+                      (shape[1]/8,shape[0]), (0,0)]],dtype=np.int32)
+    mask = region_of_interest(img, vertices)
+    return mask    
+    
+    
+    
+#
+# Initialization: loads camera calibration parameters.
+#
 def init():
     global mtx, dist
     mtx, dist = camera_calibration_params()
