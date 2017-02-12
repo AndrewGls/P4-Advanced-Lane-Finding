@@ -198,6 +198,17 @@ def ROI(img):
     return mask    
     
     
+#
+# Binarize source RGB image.
+# Returns: undistorted binarized image with 1 channel, macked by ROI.
+#
+def binarize_pipeline(img):
+    binary = binarize_img(img)
+    binary = warp_img(binary)
+    binary = ROI(binary)
+    binary = binary[:,:,0]
+    return binary
+    
     
 #
 # Initialization: loads camera calibration parameters.
