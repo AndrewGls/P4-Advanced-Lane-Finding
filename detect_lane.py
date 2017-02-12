@@ -128,9 +128,13 @@ def detect_line(binary, x_base, margin=100, verbose=False):
     laney = nonzeroy[lane_inds]
     
     # Fit a second order polynomial to each
-    lane_fit = np.polyfit(laney, lanex, 2)
+    lane_fit = np.empty(shape=(0,0))
+    if len(laney):
+        lane_fit = np.polyfit(laney, lanex, 2)
 
     return (lanex, laney), lane_fit, win_rects
+
+
 
 #
 # Draws detected lanes to an image.
@@ -193,7 +197,7 @@ def draw_lanes_with_windows(binary,
         cv2.fillPoly(window_img, np.int_([right_pts]), (255,255, 0))
     if len(left_linex) or len(right_linex):
         out_img = cv2.addWeighted(out_img, 1, window_img, 1., 0)
-        
+            
     return out_img
     
     
@@ -207,8 +211,6 @@ def detect_line_in_roi(binary, line_fit, margin=100):
     nonzeroy = np.array(nonzero[0])
     nonzerox = np.array(nonzero[1])
     
-    linex = []
-    liney = []
     line_lane_inds = []
     
     if len(line_fit):
@@ -220,6 +222,8 @@ def detect_line_in_roi(binary, line_fit, margin=100):
     # Fit a second order polynomial to each
     if len(linex) and len(liney):
         line_fit = np.polyfit(liney, linex, 2)
+    else:
+        line_fit = np.empty(shape=(0,0))
     # Generate x and y values for plotting
 #    ploty = np.linspace(0, binary.shape[0]-1, binary.shape[0] )
 #    line_fitx = line_fit[0]*ploty**2 + line_fit[1]*ploty + line_fit[2]
@@ -295,5 +299,4 @@ def draw_detect_line_in_roi(binary_warped,
         cv2.fillPoly(window_img, np.int_([right_pts]), (255,255, 0))
     out_img = cv2.addWeighted(out_img, 1, window_img, 1., 0)
     
-    return out_img
-    
+    return out_img    
