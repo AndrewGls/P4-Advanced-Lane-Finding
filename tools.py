@@ -58,7 +58,7 @@ def birdview_corners():
 # Params: img - source image
 # Returns wrapped image and perspective transformation matrix M.
 #
-def warp_img_M(img, bird_view = True):
+def warp_img_M(img, tobird = True):
     src = birdview_corners() # trapezoid in camera space
     
     offset = (140,0) # left/right offset
@@ -71,7 +71,7 @@ def warp_img_M(img, bird_view = True):
                       dst_top_left+offset,  # top-left
                       dst_top_right-offset, # top-right
                       src[3]-offset])       # bottom-right    
-    if bird_view:
+    if tobird:
         M = cv2.getPerspectiveTransform(src, dst)
     else:
         M = cv2.getPerspectiveTransform(dst, src)
@@ -87,8 +87,8 @@ def warp_img_M(img, bird_view = True):
 # Params: img - source image
 # Returns wrapped image.
 #
-def warp_img(img, bird_view = True):
-    warp,_ = warp_img_M(img, bird_view)
+def warp_img(img, tobird = True):
+    warp,_ = warp_img_M(img, tobird)
     return warp
 
     

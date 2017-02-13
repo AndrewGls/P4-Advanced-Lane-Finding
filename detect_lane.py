@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 #import matplotlib.image as mpimg
 import scipy
 #from scipy import signal
+from collections import deque
+from tools import binarize_pipeline, undistort_img, warp_img_M
+
 
 
 
@@ -197,7 +200,7 @@ def draw_lanes_with_windows(binary,
         cv2.fillPoly(window_img, np.int_([right_pts]), (255,255, 0))
     if len(left_linex) or len(right_linex):
         out_img = cv2.addWeighted(out_img, 1, window_img, 1., 0)
-            
+        
     return out_img
     
     
@@ -299,4 +302,222 @@ def draw_detect_line_in_roi(binary_warped,
         cv2.fillPoly(window_img, np.int_([right_pts]), (255,255, 0))
     out_img = cv2.addWeighted(out_img, 1, window_img, 1., 0)
     
-    return out_img    
+    return out_img
+
+
+#
+# Define a class to receive the characteristics of each line detection
+#
+class Line():
+    def __init__(self, def_line_pos, img_width, n = 5):
+        # size of queue to store data for last delected n frames
+        self.n = n
+        #number of fitted lines in buffer
+        self.n_buffered = 0
+        # was the line detected in the last iteration?
+        self.detected = False  
+        # x values of the last n fits of the line
+        self.recent_xfitted = deque([],maxlen=n)#[] 
+        # fit-coeffs of the last n fits of the line
+        self.recent_fit_coeffs = deque([],maxlen=n)  
+        # average x values of the fitted line over the last n iterations
+        self.bestx = None     
+        # polynomial coefficients averaged over the last n iterations
+        self.avg_fit_coeffs = None  
+        # radius of curvature of the line in some units
+        self.radius_of_curvature = None 
+        # distance in meters of vehicle center from the line
+        self.line_base_pos = None 
+        # difference in fit coefficients between last and new fits
+        self.diffs = np.array([0,0,0], dtype='float') 
+        #x values for detected line pixels
+        self.allx = None  
+        #y values for detected line pixels
+        self.ally = None
+        # position in pixels of fitted line at the bottom of image
+        self.line_pos = None
+        # polynomial coefficients of the most recent fit
+        self.current_fit_coeffs = [np.array([False])]
+        # x values of the most recent fit
+        self.current_fit_x_vals = [np.array([False])]
+        # y values for line fit: const y-grid for image
+        self.fit_y_vals = np.linspace(0, 100, num=101) * 7.2
+        # center of image (center of car) in pixels along x is used as base pos. 
+        self.center_of_car = img_width/2
+        # default position of line
+        self.def_line_pos = def_line_pos
+        
+    def set_current_fit_x_vals(self):
+        yvals = self.fit_y_vals
+        self.current_fit_x_vals = self.current_fit_coeffs[0]*yvals**2 + self.current_fit_coeffs[1]*yvals + self.current_fit_coeffs[2]
+        pass
+    
+#    def set_current_fit_coeffs(self):
+#        self.current_fit_coeffs = np.polyfit(self.ally, self.allx, 2)
+    
+    def set_line_base_pos(self):
+        y_eval = max(self.fit_y_vals)
+        self.line_pos = self.current_fit_coeffs[0]*y_eval**2 + self.current_fit_coeffs[1]*y_eval + self.current_fit_coeffs[2]
+        self.line_base_pos = (self.line_pos - self.center_of_car)*3.7/600.0 # 3.7 meters is ~600 pixels along x direction
+  
+    def calc_diffs(self):
+        if self.n_buffered > 0:
+            self.diffs = self.current_fit_coeffs - self.avg_fit_coeffs
+        else:
+            self.diffs = np.array([0,0,0], dtype='float') 
+            
+    def set_radius_of_curvature(self):
+        # Define y-value where we want radius of curvature (choose bottom of the image)
+        y_eval = max(self.fit_y_vals)
+        if self.avg_fit_coeffs is not None:
+            self.radius_of_curvature = ((1 + (2*self.avg_fit_coeffs[0]*y_eval + self.avg_fit_coeffs[1])**2)**1.5) \
+                             /np.absolute(2*self.avg_fit_coeffs[0])
+            
+    def push_data(self):
+        self.recent_xfitted.appendleft(self.current_fit_x_vals)
+        self.recent_fit_coeffs.appendleft(self.current_fit_coeffs)
+        assert(len(self.recent_xfitted)==len(self.recent_fit_coeffs))
+        self.n_buffered = len(self.recent_xfitted)
+        
+    def pop_data(self):        
+        if self.n_buffered > 0:
+            self.recent_xfitted.pop()
+            self.recent_fit_coeffs.pop()
+            assert(len(self.recent_xfitted)==len(self.recent_fit_coeffs))
+            self.n_buffered = len(self.recent_xfitted)
+            
+    def set_avgx(self):
+        fits = self.recent_xfitted
+        if len(fits):
+            av = 0
+            for fit in fits:
+                av += np.array(fit)
+            av = av / len(fits)
+            self.avgx = av
+            
+    def set_avgcoeffs(self):
+        coeffs = self.recent_fit_coeffs
+        if len(coeffs):
+            av = 0
+            for coeff in coeffs:
+                av += np.array(coeff)
+            av = av / len(coeffs)
+            self.avg_fit_coeffs = av
+            
+    # here come sanity checks of the computed metrics
+    def accept_lane(self):
+        flag = True
+        maxdist = 2.8  # distance in meters from the lane
+        if(abs(self.line_base_pos) > maxdist ):
+            print('lane too far away')
+            flag  = False        
+        if self.n_buffered:
+            relative_delta = self.diffs / self.avg_fit_coeffs
+            # allow maximally this percentage of variation in the fit coefficients from frame to frame
+            if not (abs(relative_delta) < np.array([0.7,0.5,0.15])).all():
+                print('fit coeffs too far off [%]',relative_delta)
+                flag=False
+        return flag
+        
+    def update(self, line_x, line_y, line_fit, verbose=False):
+        self.allx = line_x
+        self.ally = line_y
+        self.current_fit_coeffs = line_fit
+        self.set_current_fit_x_vals()
+        self.set_radius_of_curvature()
+        self.set_line_base_pos()
+        self.calc_diffs()
+        if self.accept_lane():
+            self.detected=True
+            self.push_data()
+            self.set_avgx()
+            self.set_avgcoeffs()            
+        else:
+            self.detected=False            
+            self.pop_data()
+            if self.n_buffered>0:
+                self.set_avgx()
+                self.set_avgcoeffs() 
+                
+        return self.detected,self.n_buffered
+
+
+#
+# Extracts lane from binary image: line_xvals, line_yvals, line_fit_coeff
+# Returns: line_xvals, line_yvals, line_fit_coeff
+#
+def get_line_from_image(binary, line, verbose=False):
+    failedPeak = False
+
+    # detect line in binary image
+    linex = np.empty(shape=(0,0))
+    liney = np.empty(shape=(0,0))
+    line_fit = np.empty(shape=(0,0))
+    if line.detected:
+        (linex, liney), line_fit = detect_line_in_roi(binary, line.current_fit_coeffs)
+    else:
+        line_pos = find_peaks(binary, line.def_line_pos, verbose=verbose)
+        if line_pos == 0:
+            failedPeak = True
+            line_pos = line.def_line_pos
+        (linex, liney), line_fit, _ = detect_line(binary, line_pos)
+
+    return (linex, liney), line_fit, failedPeak
+
+
+#
+# Projects the lane onto the road.
+#
+def project_lanes_onto_road(img, left_fitx, right_fitx, yvals):
+    
+    # Create an image to draw the lines on
+    color_warp = np.zeros_like(img).astype(np.uint8)
+
+    # Recast the x and y points into usable format for cv2.fillPoly()
+    pts_left = np.array([np.transpose(np.vstack([left_fitx, yvals]))])
+    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, yvals])))])
+    pts = np.hstack((pts_left, pts_right))
+
+    # Draw the lane onto the warped blank image
+    cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
+    undist = undistort_img(img)    
+    unwarp,Minv = warp_img_M(img,tobird=False)
+
+    # Warp the blank back to original image space using inverse perspective matrix (Minv)
+    newwarp = cv2.warpPerspective(color_warp, Minv, (img.shape[1], img.shape[0])) 
+    # Combine the result with the original image
+    result = cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
+    
+    return result
+
+    
+#
+# Detects left and right lanes in binary image.
+#
+def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
+    
+    binary = binarize_pipeline(img)   
+
+    # detect left line
+    (leftx, lefty), left_fit, failedPeak = get_line_from_image(binary, leftL, verbose=verbose)
+    if failedPeak:
+        print('Failed left line detection!')
+        plt.imsave(str(frame_ind)+'_L_trouble_image.jpg',img)
+    leftL.update(leftx, lefty, left_fit)
+    #print('left_fit_coeff::', leftL.current_fit_coeffs)
+        
+    # detect right line
+    (rightx, righty), right_fit, failedPeak = get_line_from_image(binary, rightL, verbose=verbose)
+    if failedPeak:
+        print('Failed right line detection!')
+        plt.imsave(str(frame_ind)+'_R_trouble_image.jpg',img)
+    rightL.update(rightx, righty, right_fit)
+    #print('right_fit_coeff::', rightL.current_fit_coeffs)
+    
+    lane_width_2 = 3.7/2
+    
+    
+    result = project_lanes_onto_road(img, leftL.avgx, rightL.avgx, leftL.fit_y_vals)
+    
+    return result
+    
