@@ -414,12 +414,12 @@ class Line():
         if(abs(self.line_base_pos) > maxdist ):
             print('lane too far away')
             flag  = False        
-        if self.n_buffered:
-            relative_delta = self.diffs / self.avg_fit_coeffs
-            # allow maximally this percentage of variation in the fit coefficients from frame to frame
-            if not (abs(relative_delta) < np.array([0.7,0.5,0.15])).all():
-                print('fit coeffs too far off [%]',relative_delta)
-                flag=False
+#        if self.n_buffered:
+#            relative_delta = self.diffs / self.avg_fit_coeffs
+#            # allow maximally this percentage of variation in the fit coefficients from frame to frame
+#            if not (abs(relative_delta) < np.array([0.7,0.5,0.15])).all():
+#                print('fit coeffs too far off [%]',relative_delta)
+#                flag=False
         return flag
         
     def update(self, line_x, line_y, line_fit, verbose=False):
@@ -498,17 +498,17 @@ def project_lanes_onto_road(img, left_fitx, right_fitx, yvals):
 # Detects left and right lanes in binary image.
 #
 def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
-    ShowDebugBoard = True
     not_warped = None
     
-    if ShowDebugBoard:
+    if verbose:
         not_warped, binary = binarize_pipeline_ex(img)
     else:
         binary = binarize_pipeline(img)
         
+    verbose_peak = (verbose and frame_ind == 0)
 
     # detect left line
-    (leftx, lefty), left_fit, failedPeak = get_line_from_image(binary, leftL, verbose=verbose)
+    (leftx, lefty), left_fit, failedPeak = get_line_from_image(binary, leftL, verbose=verbose_peak)
     if failedPeak:
         print('Failed left line detection!')
         plt.imsave(str(frame_ind)+'_L_trouble_image.jpg',img)
@@ -516,7 +516,7 @@ def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
     #print('left_fit_coeff::', leftL.current_fit_coeffs)
         
     # detect right line
-    (rightx, righty), right_fit, failedPeak = get_line_from_image(binary, rightL, verbose=verbose)
+    (rightx, righty), right_fit, failedPeak = get_line_from_image(binary, rightL, verbose=verbose_peak)
     if failedPeak:
         print('Failed right line detection!')
         plt.imsave(str(frame_ind)+'_R_trouble_image.jpg',img)
@@ -531,7 +531,7 @@ def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
 
     
     # Draw debug board with Binarization-View, Lane-Detesction-View
-    if ShowDebugBoard:
+    if verbose:
         board_ratio = 0.25
         board_x = 20
         board_y = 20
@@ -561,8 +561,11 @@ def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
         xmax += offset_x
         board_img = draw_detect_line_in_roi(binary, left_fit, leftx, lefty, right_fit, rightx, righty)
         board_img = cv2.resize(board_img, dsize=(board_w, board_h), interpolation=cv2.INTER_LINEAR)
-        #board_img = np.dstack([board_binary, board_binary, board_binary])
         result[ymin:ymax, xmin:xmax, :] = board_img
+
+        # add frame_index text at the bottom of board
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(result, 'frame {:d}'.format(frame_ind), (xmax + 20, 60), font, 0.9, (255, 0, 0), 2, cv2.LINE_AA)
     
     return result
     
