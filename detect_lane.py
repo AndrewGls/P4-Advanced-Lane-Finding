@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import scipy
 #from scipy import signal
 from collections import deque
-from tools import binarize_pipeline, undistort_img, warp_img_M
+from tools import binarize_pipeline, binarize_pipeline_ex, undistort_img, warp_img_M
 
 
 
@@ -24,13 +24,14 @@ from tools import binarize_pipeline, undistort_img, warp_img_M
 #         thresh_dist - expected distance between detected peak and expected position of line centerX_base.
 def find_peaks(binary, 
                centerX_base,
-               thresh=3000,
+               thresh=11,
                thresh_dist=150,
                sigma=20,
                verbose=False):
  
     # Assuming you have created a warped binary image called "bynary"
     # Take a histogram of the bottom half of the image
+    binary = ((binary).astype('float64')) / 255.
     histogram = np.sum(binary[binary.shape[0]/2:,:], axis=0)
     filtered = scipy.ndimage.filters.gaussian_filter1d(histogram, sigma)
     # Find the peak of the left and right halves of the histogram
@@ -88,6 +89,8 @@ def detect_line(binary, x_base, margin=100, verbose=False):
     # These will be the starting point for the left and right lines
     #midpoint = np.int(binary.shape[1]/2)
 
+    binary = ((binary).astype('float64')) / 255.
+    
     # Visualization of window rectangles
     win_rects = []
     
@@ -157,7 +160,7 @@ def draw_lanes_with_windows(binary,
     
     #print(type(left_fit))
     
-    out_img = np.dstack((binary, binary, binary))*255
+    out_img = np.dstack((binary, binary, binary))
 
     left_fitx = []
     right_fitx = []
@@ -245,7 +248,7 @@ def draw_detect_line_in_roi(binary_warped,
                             margin=100):
     
     # Create an image to draw on and an image to show the selection window
-    out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
+    out_img = np.dstack((binary_warped, binary_warped, binary_warped))
     window_img = np.zeros_like(out_img)
     # Color in left and right line pixels
     out_img[lefty, leftx] = [255, 0, 0]
@@ -495,8 +498,14 @@ def project_lanes_onto_road(img, left_fitx, right_fitx, yvals):
 # Detects left and right lanes in binary image.
 #
 def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
+    ShowDebugBoard = True
+    not_warped = None
     
-    binary = binarize_pipeline(img)   
+    if ShowDebugBoard:
+        not_warped, binary = binarize_pipeline_ex(img)
+    else:
+        binary = binarize_pipeline(img)
+        
 
     # detect left line
     (leftx, lefty), left_fit, failedPeak = get_line_from_image(binary, leftL, verbose=verbose)
@@ -513,11 +522,47 @@ def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
         plt.imsave(str(frame_ind)+'_R_trouble_image.jpg',img)
     rightL.update(rightx, righty, right_fit)
     #print('right_fit_coeff::', rightL.current_fit_coeffs)
+        
     
     lane_width_2 = 3.7/2
     
     
     result = project_lanes_onto_road(img, leftL.avgx, rightL.avgx, leftL.fit_y_vals)
+
+    
+    # Draw debug board with Binarization-View, Lane-Detesction-View
+    if ShowDebugBoard:
+        board_ratio = 0.25
+        board_x = 20
+        board_y = 20
+        board_h = int(img.shape[0] * board_ratio)
+        board_w = int(img.shape[1] * board_ratio)
+            
+        ymin = board_y
+        ymax = board_h + board_y
+        xmin = board_x
+        xmax = board_x + board_w
+    
+        offset_x = board_x + board_w
+        
+        # draw binary image
+        board_img = cv2.resize(not_warped, dsize=(board_w, board_h), interpolation=cv2.INTER_LINEAR)
+        result[ymin:ymax, xmin:xmax, :] = board_img
+        
+        # draw warped binary image
+        xmin += offset_x
+        xmax += offset_x
+        board_img = cv2.resize(binary, dsize=(board_w, board_h), interpolation=cv2.INTER_LINEAR)
+        board_img = np.dstack([board_img, board_img, board_img])
+        result[ymin:ymax, xmin:xmax, :] = board_img
+        
+        # draw warped binary image
+        xmin += offset_x
+        xmax += offset_x
+        board_img = draw_detect_line_in_roi(binary, left_fit, leftx, lefty, right_fit, rightx, righty)
+        board_img = cv2.resize(board_img, dsize=(board_w, board_h), interpolation=cv2.INTER_LINEAR)
+        #board_img = np.dstack([board_binary, board_binary, board_binary])
+        result[ymin:ymax, xmin:xmax, :] = board_img
     
     return result
     

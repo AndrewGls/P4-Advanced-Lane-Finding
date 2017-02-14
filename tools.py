@@ -203,12 +203,20 @@ def ROI(img):
 # Returns: undistorted binarized image with 1 channel, macked by ROI.
 #
 def binarize_pipeline(img):
+    img = undistort_img(img)
     binary = binarize_img(img)
     binary = warp_img(binary)
     binary = ROI(binary)
     binary = binary[:,:,0]
     return binary
     
+def binarize_pipeline_ex(img):
+    img = undistort_img(img)
+    binary = binarize_img(img)
+    warped = warp_img(binary)
+    warped = ROI(warped)
+    warped = warped[:,:,0]
+    return binary, warped
     
 #
 # Initialization: loads camera calibration parameters.
