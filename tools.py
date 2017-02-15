@@ -99,13 +99,19 @@ def warp_img(img, tobird = True):
 #
 def binarize(img,
              s_thresh=(90, 255),
-             l_thresh=(40, 255),
-             sx_thresh=(20, 100), ksize_sx=3#11
+             l_thresh=(60, 255),#l_thresh=(40, 255),
+#             sx_thresh=(20, 100),
+             sx_thresh=(30, 100),
+             ksize_sx=3#11
             ):    
     # Convert to HLS color space and separate the L & S channels
-    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
-    l_channel = hls[:,:,1]
-    s_channel = hls[:,:,2]
+#    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
+#    l_channel = hls[:,:,1]
+#    s_channel = hls[:,:,2]
+
+    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV).astype(np.float)
+    s_channel = hsv[:,:,1]
+    l_channel = hsv[:,:,2]
     
     # Sobel x
     sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0, ksize=ksize_sx) # Take the derivative in x
@@ -125,7 +131,8 @@ def binarize(img,
     l_binary[(l_channel >= l_thresh[0]) & (l_channel <= l_thresh[1])] = 1
     
     binary = np.zeros_like(l_binary)
-    binary[(l_binary == 1) & (s_binary == 1) | (sxbinary == 1)] = 1
+#    binary[(l_binary == 1) & (s_binary == 1) | (sxbinary == 1)] = 1
+    binary[(l_binary == 1) & (s_binary == 1) | (sxbinary == 1) | (l_channel > 220)] = 1
     
     #kernel = np.ones((3, 3), binary.dtype)
     # remove white blobs
