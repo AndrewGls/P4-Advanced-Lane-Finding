@@ -45,10 +45,10 @@ def birdview_corners():
                           [1120,720]]) # bottom-right
     
     # for straight_lines2.jpg
-#    corners = np.float32([[205,720],   # bottom-left
-#                          [592-0,450],   # top-left
-#                          [691+0,450],   # top-right
-#                          [1124,720]]) # bottom-right  
+#    corners = np.float32([[190,720],   # bottom-left
+#                          [583,456],   # top-left
+#                          [698,456],   # top-right
+#                          [1120,720]]) # bottom-right
     return corners
 
     
@@ -99,19 +99,19 @@ def warp_img(img, tobird = True):
 #
 def binarize(img,
              s_thresh=(90, 255),
-             l_thresh=(60, 255),#l_thresh=(40, 255),
+             l_thresh=(40, 255),#l_thresh=(60, 255),#l_thresh=(40, 255),
 #             sx_thresh=(20, 100),
              sx_thresh=(30, 100),
              ksize_sx=3#11
             ):    
     # Convert to HLS color space and separate the L & S channels
-#    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
-#    l_channel = hls[:,:,1]
-#    s_channel = hls[:,:,2]
+    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
+    l_channel = hls[:,:,1]
+    s_channel = hls[:,:,2]
 
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV).astype(np.float)
-    s_channel = hsv[:,:,1]
-    l_channel = hsv[:,:,2]
+#    s_channel = hsv[:,:,1]
+    v_channel = hsv[:,:,2]
     
     # Sobel x
     sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0, ksize=ksize_sx) # Take the derivative in x
@@ -125,6 +125,11 @@ def binarize(img,
     # Threshold color channel
     s_binary = np.zeros_like(s_channel)
     s_binary[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 1
+
+    # added
+    #kernel = np.ones((20, 20), s_binary.dtype)
+    #s_binary = cv2.morphologyEx(s_binary, cv2.MORPH_OPEN, kernel)
+
     
     # Threshold lightness
     l_binary = np.zeros_like(l_channel)
@@ -132,7 +137,7 @@ def binarize(img,
     
     binary = np.zeros_like(l_binary)
 #    binary[(l_binary == 1) & (s_binary == 1) | (sxbinary == 1)] = 1
-    binary[(l_binary == 1) & (s_binary == 1) | (sxbinary == 1) | (l_channel > 220)] = 1
+    binary[(l_binary == 1) & (s_binary == 1) | (sxbinary == 1) | (v_channel > 220)] = 1
     
     #kernel = np.ones((3, 3), binary.dtype)
     # remove white blobs
@@ -215,6 +220,13 @@ def binarize_pipeline(img):
     binary = warp_img(binary)
     binary = ROI(binary)
     binary = binary[:,:,0]
+
+#    img = undistort_img(img)
+#    binary = warp_img(img)
+#    binary = binarize_img(binary)
+#    binary = ROI(binary)
+#    binary = binary[:,:,0]
+
     return binary
     
 def binarize_pipeline_ex(img):
@@ -224,6 +236,14 @@ def binarize_pipeline_ex(img):
     warped = ROI(warped)
     warped = warped[:,:,0]
     return binary, warped
+
+#    img = undistort_img(img)
+#    warped = warp_img(img)
+#    binary = binarize_img(warped)
+#    binary = ROI(binary)
+#    binary = binary[:,:,0]
+
+#    return warped, binary
     
 #
 # Initialization: loads camera calibration parameters.
@@ -231,3 +251,13 @@ def binarize_pipeline_ex(img):
 def init():
     global mtx, dist
     mtx, dist = camera_calibration_params()
+    
+# HSV -> V-channel, S-channel
+# Lab -> b-channel preferable then S-chahhel
+# Sliding window 20x20:
+#  1) measure min-max
+#  2) local_th = (max-min)/2
+#  3) shadows_th = [80..100] -> 120
+#  4) noise window: (max-min) < noise_th = 5 or no SobelGrad(mag + Sx|Sy)
+#  5) shadow window: if local_th < shadows_th
+#  6) binarize window:  B < local_th < W or just B < local_th
