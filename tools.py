@@ -125,11 +125,6 @@ def binarize(img,
     # Threshold color channel
     s_binary = np.zeros_like(s_channel)
     s_binary[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 1
-
-    # added
-    #kernel = np.ones((20, 20), s_binary.dtype)
-    #s_binary = cv2.morphologyEx(s_binary, cv2.MORPH_OPEN, kernel)
-
     
     # Threshold lightness
     l_binary = np.zeros_like(l_channel)
@@ -148,7 +143,6 @@ def binarize(img,
     # Stack each channel
     # Note color_binary[:, :, 0] is all 0s, effectively an all black image. It might
     # be beneficial to replace this channel with something else.
-#    color_binary = np.dstack(( np.zeros_like(sxbinary), sxbinary, s_binary))
     color_binary = np.dstack((l_binary, sxbinary, s_binary))
     binary = (np.dstack(( binary, binary, binary))*255.).astype('uint8')
     
@@ -251,13 +245,3 @@ def binarize_pipeline_ex(img):
 def init():
     global mtx, dist
     mtx, dist = camera_calibration_params()
-    
-# HSV -> V-channel, S-channel
-# Lab -> b-channel preferable then S-chahhel
-# Sliding window 20x20:
-#  1) measure min-max
-#  2) local_th = (max-min)/2
-#  3) shadows_th = [80..100] -> 120
-#  4) noise window: (max-min) < noise_th = 5 or no SobelGrad(mag + Sx|Sy)
-#  5) shadow window: if local_th < shadows_th
-#  6) binarize window:  B < local_th < W or just B < local_th

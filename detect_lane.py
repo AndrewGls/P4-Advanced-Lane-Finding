@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import scipy
 #from scipy import signal
 from collections import deque
-from tools import binarize_pipeline, binarize_pipeline_ex, undistort_img, warp_img_M
+from tools import binarize_pipeline, binarize_pipeline_ex, undistort_img, warp_img_M, warp_img
 
 
 
@@ -346,7 +346,7 @@ class Line():
         # y values for line fit: const y-grid for image
         self.fit_y_vals = np.linspace(0, 100, num=101) * 7.2
         # center of image (center of car) in pixels along x is used as base pos. 
-        self.center_of_car = img_width/2
+        self.center_of_car = img_width/2 + 14 # 14 is systematic error
         # default position of line
         self.def_line_pos = def_line_pos
         
@@ -358,14 +358,11 @@ class Line():
             self.current_fit_x_vals = np.empty(shape=(0,0))
         pass
     
-#    def set_current_fit_coeffs(self):
-#        self.current_fit_coeffs = np.polyfit(self.ally, self.allx, 2)
-    
     def set_line_base_pos(self):
         if len(self.current_fit_coeffs):
             y_eval = max(self.fit_y_vals)
             self.line_pos = self.current_fit_coeffs[0]*y_eval**2 + self.current_fit_coeffs[1]*y_eval + self.current_fit_coeffs[2]
-            self.line_base_pos = (self.line_pos - self.center_of_car)*3.7/600.0 # 3.7 meters is ~600 pixels along x direction            
+            self.line_base_pos = (self.line_pos - self.center_of_car)*3.7/611. # 3.7 meters is ~611 pixels along x direction            
   
     def calc_diffs(self):
         if len(self.current_fit_coeffs):
@@ -440,7 +437,6 @@ class Line():
         self.ally = line_y
         self.current_fit_coeffs = line_fit
         self.set_current_fit_x_vals()
-#        self.set_radius_of_curvature()
         self.set_line_base_pos()
         self.calc_diffs()
         if self.accept_lane():
@@ -539,11 +535,9 @@ def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
     #print('right_fit_coeff::', rightL.current_fit_coeffs)
         
     
-    lane_width_2 = 3.7/2
-    
-    
     result = project_lanes_onto_road(img, leftL.avgx, rightL.avgx, leftL.fit_y_vals)
 
+    ymax = 0
     
     # Draw debug board with Binarization-View, Lane-Detesction-View
     if verbose:
@@ -567,8 +561,8 @@ def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
         # draw warped binary image
         xmin += offset_x
         xmax += offset_x
-        board_img = cv2.resize(binary, dsize=(board_w, board_h), interpolation=cv2.INTER_LINEAR)
-        board_img = np.dstack([board_img, board_img, board_img])
+        img_warped = warp_img(undistort_img(img))
+        board_img = cv2.resize(img_warped, dsize=(board_w, board_h), interpolation=cv2.INTER_LINEAR)
         result[ymin:ymax, xmin:xmax, :] = board_img
         
         # draw warped binary image
@@ -581,6 +575,26 @@ def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
         # add frame_index text at the bottom of board
         font = cv2.FONT_HERSHEY_SIMPLEX
         cv2.putText(result, 'frame {:d}'.format(frame_ind), (xmax + 20, 60), font, 0.9, (255, 0, 0), 2, cv2.LINE_AA)
+
+                
+    text_pos_x = 20
+    text_pos_y = ymax + 40
+
+    lane_dist = 3.7 / 2 # distance from the center of car to the lane is 3.7/2 meters
+    off_center = 100 * round( ( (abs(leftL.line_base_pos)-lane_dist) + (lane_dist - rightL.line_base_pos) )/2, 2 )    
     
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    text = str('Distance from center: ' + str(off_center) + 'cm')
+    cv2.putText(result, text, (text_pos_x, text_pos_y), font, 1, (18, 106, 252), 2, cv2.LINE_AA)
+    
+    if leftL.radius_of_curvature and rightL.radius_of_curvature:
+#        curvature = round((leftL.radius_of_curvature + rightL.radius_of_curvature) / 2./1000., 1)
+        # Takes min curvature because more robust detected lane usually has less curvature coeff A in f(y)=A^2*y + B*y + C.
+        curvatureL = round(leftL.radius_of_curvature/1000., 1)
+        curvatureR = round(rightL.radius_of_curvature/1000., 1)
+        curvature = min(curvatureL, curvatureR) 
+        text = str('radius of curvature: ' + str(curvature) + 'km')
+        cv2.putText(result, text, (text_pos_x,text_pos_y+40), font, 1, (18, 106, 252), 2, cv2.LINE_AA)    
+        
     return result
     
