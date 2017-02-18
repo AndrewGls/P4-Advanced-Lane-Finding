@@ -53,19 +53,19 @@ def find_peaks(binary,
 
         ax1.set_title('Histrogram of binarized warped image')
         ax1.plot(range(len(histogram)), histogram, 'b', range(len(filtered)), filtered, 'r')
-        print('pick value: ', filtered[peak_ind])
+        print('pick value: ', filtered[peak_x])
         if centerX_base < midpoint:
             print('peak before sigma: ', np.argmax(histogram[:midpoint]))
             ax2.set_title('Histrogram of Left line')
             ax2.plot(histogram[:midpoint], 'r')
         else:
             print('peak before sigma: ', (np.argmax(histogram[midpoint:]) + midpoint))
-            ax2.set_title('Histrogram of Right line - midpoint')
-            ax2.plot(range(binary.shape[1]-midpoint), histogram[midpoint:] + midpoint, 'g')
+            ax2.set_title('Histrogram of Right line minus ' + str(midpoint))
+            ax2.plot(range(binary.shape[1]-midpoint), histogram[midpoint:], 'g')
         print('peak_x after sigma: ', peak_x)
         plt.show()
     
-    if filtered[peak_ind] < thresh:
+    if filtered[peak_x] < thresh:
         peak_x = 0
         if verbose: print('noise: peak value < ', thresh)
     elif np.abs(peak_x - centerX_base) > thresh_dist:
@@ -352,22 +352,30 @@ class Line():
         
     def set_current_fit_x_vals(self):
         yvals = self.fit_y_vals
-        self.current_fit_x_vals = self.current_fit_coeffs[0]*yvals**2 + self.current_fit_coeffs[1]*yvals + self.current_fit_coeffs[2]
+        if len(self.current_fit_coeffs):
+            self.current_fit_x_vals = self.current_fit_coeffs[0]*yvals**2 + self.current_fit_coeffs[1]*yvals + self.current_fit_coeffs[2]
+        else:
+            self.current_fit_x_vals = np.empty(shape=(0,0))
         pass
     
 #    def set_current_fit_coeffs(self):
 #        self.current_fit_coeffs = np.polyfit(self.ally, self.allx, 2)
     
     def set_line_base_pos(self):
-        y_eval = max(self.fit_y_vals)
-        self.line_pos = self.current_fit_coeffs[0]*y_eval**2 + self.current_fit_coeffs[1]*y_eval + self.current_fit_coeffs[2]
-        self.line_base_pos = (self.line_pos - self.center_of_car)*3.7/600.0 # 3.7 meters is ~600 pixels along x direction
+        if len(self.current_fit_coeffs):
+            y_eval = max(self.fit_y_vals)
+            self.line_pos = self.current_fit_coeffs[0]*y_eval**2 + self.current_fit_coeffs[1]*y_eval + self.current_fit_coeffs[2]
+            self.line_base_pos = (self.line_pos - self.center_of_car)*3.7/600.0 # 3.7 meters is ~600 pixels along x direction            
   
     def calc_diffs(self):
-        if self.n_buffered > 0:
-            self.diffs = self.current_fit_coeffs - self.avg_fit_coeffs
+        if len(self.current_fit_coeffs):
+            if self.n_buffered > 0:
+                self.diffs = self.current_fit_coeffs - self.avg_fit_coeffs
+            else:
+                self.diffs = np.array([0,0,0], dtype='float')
         else:
-            self.diffs = np.array([0,0,0], dtype='float') 
+            self.diffs = np.array([0,0,0], dtype='float')
+        pass
             
     def set_radius_of_curvature(self):
         # Define y-value where we want radius of curvature (choose bottom of the image)
@@ -409,6 +417,10 @@ class Line():
             
     # here come sanity checks of the computed metrics
     def accept_lane(self):
+        if len(self.current_fit_coeffs) == 0:
+            print('lane is not detected: empty current_fit_coeffs!')
+            return False
+            pass
         flag = True
         maxdist = 2.8  # distance in meters from the lane
         if(abs(self.line_base_pos) > maxdist ):
@@ -420,6 +432,7 @@ class Line():
 #            if not (abs(relative_delta) < np.array([0.7,0.5,0.15])).all():
 #                print('fit coeffs too far off [%]',relative_delta)
 #                flag=False
+            
         return flag
         
     def update(self, line_x, line_y, line_fit, verbose=False):
@@ -427,7 +440,7 @@ class Line():
         self.ally = line_y
         self.current_fit_coeffs = line_fit
         self.set_current_fit_x_vals()
-        self.set_radius_of_curvature()
+#        self.set_radius_of_curvature()
         self.set_line_base_pos()
         self.calc_diffs()
         if self.accept_lane():
@@ -440,8 +453,10 @@ class Line():
             self.pop_data()
             if self.n_buffered>0:
                 self.set_avgx()
-                self.set_avgcoeffs() 
+                self.set_avgcoeffs()
                 
+        self.set_radius_of_curvature()
+               
         return self.detected,self.n_buffered
 
 
