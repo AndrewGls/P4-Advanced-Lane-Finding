@@ -1,14 +1,7 @@
-#import os
-#import tools
-#import glob
 import cv2
 import numpy as np
-#import pickle
-#import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
-#import matplotlib.image as mpimg
 import scipy
-#from scipy import signal
 from collections import deque
 from tools import binarize_pipeline, binarize_pipeline_ex, undistort_img, warp_img_M, warp_img
 
@@ -581,11 +574,14 @@ def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
     text_pos_y = ymax + 40
 
     lane_dist = 3.7 / 2 # distance from the center of car to the lane is 3.7/2 meters
-    off_center = 100 * round( ( (abs(leftL.line_base_pos)-lane_dist) + (lane_dist - rightL.line_base_pos) )/2, 2 )    
+    off_center = round( ( (abs(leftL.line_base_pos)-lane_dist) + (lane_dist - rightL.line_base_pos) )/2, 2 )    
     
     font = cv2.FONT_HERSHEY_SIMPLEX
-    text = str('Distance from center: ' + str(off_center) + 'cm')
-    cv2.putText(result, text, (text_pos_x, text_pos_y), font, 1, (18, 106, 252), 2, cv2.LINE_AA)
+    if off_center < 0:
+        text = str('Vehicle is ' + str(abs(off_center)) + 'm of left of center')
+    else:
+        text = str('Vehicle is ' + str(off_center) + 'm of right of center')       
+    cv2.putText(result, text, (text_pos_x, text_pos_y), font, 1, (255, 255, 255), 2, cv2.LINE_AA)
     
     if leftL.radius_of_curvature and rightL.radius_of_curvature:
 #        curvature = round((leftL.radius_of_curvature + rightL.radius_of_curvature) / 2./1000., 1)
@@ -593,8 +589,8 @@ def process_image_ex(img, leftL, rightL, frame_ind=0, verbose=False):
         curvatureL = round(leftL.radius_of_curvature/1000., 1)
         curvatureR = round(rightL.radius_of_curvature/1000., 1)
         curvature = min(curvatureL, curvatureR) 
-        text = str('radius of curvature: ' + str(curvature) + 'km')
-        cv2.putText(result, text, (text_pos_x,text_pos_y+40), font, 1, (18, 106, 252), 2, cv2.LINE_AA)    
+        text = str('Radius of Curvature: ' + str(curvature) + '(km)')
+        cv2.putText(result, text, (text_pos_x,text_pos_y+40), font, 1, (255, 255, 255), 2, cv2.LINE_AA)    
         
     return result
     
