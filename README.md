@@ -111,7 +111,7 @@ Below you can see the result of left and right lane lines detection: the center 
 
 
 
-![projected line][image7]
+![projected lanes][image7]
 
 
 [link to my video result](./processed_project_video.mp4)
