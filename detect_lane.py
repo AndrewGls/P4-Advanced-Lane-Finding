@@ -10,7 +10,7 @@ from tools import binarize_pipeline, binarize_pipeline_ex, undistort_img, warp_i
 
 #
 # Finding position of left/right lines at the bottom of binary
-# warped image via dinding peakcs in hystogram.
+# warped image via detection peakcs in histogram.
 # Params: binary - binary warped image.
 #         thresh = noise thresholding for detected peacks.
 #         centerX_base - expected position of line at the bottom of binary image
