@@ -139,7 +139,9 @@ I spent more time for implementation and debugging of python pipeline code, then
 * Modification of perspective transformation, used to map to the bird's eye view space to get warped image with lane line. The current implementation generates warped images with too much blured lane lines at the top part of image. This debluring decreases robustness of lane detection and is a common reason of 'lane dansing' in generated processed_challenge_video.mp4 sample.
 * Moving binarization into warped image (after fixing of perspective transformation above) allows to improve accurancy of lane detection and to use measurement in different areas of road for adaptive thresholding.
 
-The next harder_challenge_video.mp4 sample is more complicated for current pipepline and I see two problems, connected with it: existed areas with strong shadows and moving objects like other vehicles. The first problem can be solved with local thresholding while the second problem can be solved by using information from previous frames. The filtering for large objects can be added to filter areas, covered by moving vehicles. I'll implement all notes if I have free time :)
+The next harder_challenge_video.mp4 sample is more complicated for current pipepline and I see two problems, connected with it: lane lines in areas with strong shadows and outside area of the road. The first problem can be solved with local thresholding while the second problem can be solved by adding additional filtering with ROI.
+
+I'll implement all notes if I have free time.
 
 PS: as a result of this project, I've got usefull tool for experiments with video :) 
 
