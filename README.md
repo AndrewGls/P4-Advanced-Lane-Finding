@@ -22,7 +22,7 @@ The steps of this project are the following:
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
 * Run the entire pipeline on a sample video recorded on a sunny day on the I-280.
 
-The currect project is implemented as three steps: step1 - camera calibration pipeline, step2 - image processing/testing pipeline and step3 - video processing pipeline. All python code used in step2 and step3 are in two separate python files: tools.py and detect_lane.py files. The tools.py file contains helper functions for image processing part and the detect_lane.py file contains code used for line detection. The images for camera calibration are stored in the "camera_cal" folder. All test images, used for setup internel parameters and testing are saved in the "test_images" folder. The folder "output_images" contains several folders step1 & step2 with generated samples and results. Below, I describe all the steps in details and how I addressed each point in the implementation.
+The currect project is implemented as three steps: step1 - camera calibration pipeline, step2 - image processing/testing pipeline and step3 - video processing pipeline. All python code used in step2 and step3 are in two separate python files: `tools.py` and `detect_lane.py` files. The `tools.py` file contains helper functions for image processing part and the `detect_lane.py` file contains code used for line detection. The images for camera calibration are stored in the `camera_cal` folder. All test images, used for setup internel parameters and testing are saved in the `test_images` folder. The folder `output_images` contains several folders step1 & step2 with generated samples and results. Below, I describe all the steps in details and how I addressed each point in the implementation.
 
 [//]: # (Image References)
 
@@ -32,7 +32,8 @@ The currect project is implemented as three steps: step1 - camera calibration pi
 [image4]: ./output_images/step2/camera_view_to_bird_view.jpg "Warp Example"
 [image5]: ./output_images/step2/roi_sample.jpg "Region of interest"
 [image6]: ./output_images/step2/line_detection_sample.jpg "Line detection"
-[image7]: ./output_images/step2/projected_lane_test5.jpg "Projected lines"
+[image7]: ./output_images/step2/color_fit_lines.jpg "Curvature calculation"
+[image8]: ./output_images/step2/projected_lane_test5.jpg "Projected lines"
 [video1]: ./processed_project_video.mp4 "Video"
 
 
@@ -113,13 +114,15 @@ Below you can see the result of left and right lane lines detection: the center 
 
 The radius of curvature is calculated in the method `Line.set_radius_of_curvature()`, which is called every time when the next frame is processed in the line method `Line.update()`. The method, used for estimation of Radius of Curvature, can be found [in this tutorial here](http://www.intmath.com/applications-differentiation/8-radius-curvature.php).  The radius of curvature for a second order polynomial equation `f(y)=A*y^2+B*y+C` is calculated using the following equation: `Rcurv=((1+(2*A*y+B)^2)^3/2)/abs(2*A)`
 
+![Curvature][image7]
+
 The distance between detected line and the center of lane is computed in the `Line.set_line_base_pos()` method.  To compute the distance, the following information is used for lanes in USA: the lane is about 30 meters long and 3.7 meters wide. 
 
 ### Projection of detected lane lines onto the road.
 
 The code to project detected lane onto the road can be found in the function `project_lanes_onto_road()`, defined in the `detect_lane.py` file. The function `project_lanes_onto_road()` is called every time when the next frame is processed via function `process_image_ex()`, defined in the same python file. The sample code, how these functions are used for lane projection, can be found in last cells of the file `./step2-image_processing_pipeline.ipynb`. For debuging purpose, the `process_image_ex()` function allows to visualize the following information for every frame in real time: binarization of frame, "bird's eye" view to the road and left/right lane lines detection. Below you can see the lane projection for tested image `test_images/test5.jpg`, generated in the `./step2-image_processing_pipeline.ipynb` file.
 
-![projected lanes][image7]
+![projected lanes][image8]
 
 ---
 
@@ -132,7 +135,7 @@ The processed project video can be found here:[link to video result](./processed
 
 # Discussion
 
-I spent more time for implementation and debugging of python pipeline code, then for image processing part. The developed pipeline works quite good on project_video.mp4 sample and can be fixed very easy for challenge_video.mp4 by adding the following modifications: 
+I spent more time for implementation and debugging of python pipeline code, then for image processing part. The developed pipeline works quite good on `project_video.mp4` sample and can be fixed very easy for `challenge_video.mp4` by adding the following modifications: 
 * Modification of perspective transformation, used to map to the bird's eye view space to get warped image with lane line. The current implementation generates warped images with too much blured lane lines at the top part of image. This debluring decreases robustness of lane detection and is a common reason of 'lane dansing' in generated processed_challenge_video.mp4 sample.
 * Moving binarization into warped image (after fixing of perspective transformation above) allows to improve accurancy of lane detection and to use measurement in different areas of road for adaptive thresholding.
 
