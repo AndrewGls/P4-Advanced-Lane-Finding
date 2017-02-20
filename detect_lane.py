@@ -308,7 +308,7 @@ class Line():
     def __init__(self, def_line_pos, img_width, n = 5):
         # size of queue to store data for last delected n frames
         self.n = n
-        #number of fitted lines in buffer
+        # number of fitted lines in buffer
         self.n_buffered = 0
         # was the line detected in the last iteration?
         self.detected = False  
@@ -326,9 +326,9 @@ class Line():
         self.line_base_pos = None 
         # difference in fit coefficients between last and new fits
         self.diffs = np.array([0,0,0], dtype='float') 
-        #x values for detected line pixels
+        # x values for detected line pixels
         self.allx = None  
-        #y values for detected line pixels
+        # y values for detected line pixels
         self.ally = None
         # position in pixels of fitted line at the bottom of image
         self.line_pos = None
@@ -415,13 +415,14 @@ class Line():
         maxdist = 2.8  # distance in meters from the lane
         if(abs(self.line_base_pos) > maxdist ):
             print('lane too far away')
-            flag  = False        
-#        if self.n_buffered:
-#            relative_delta = self.diffs / self.avg_fit_coeffs
-#            # allow maximally this percentage of variation in the fit coefficients from frame to frame
-#            if not (abs(relative_delta) < np.array([0.7,0.5,0.15])).all():
-#                print('fit coeffs too far off [%]',relative_delta)
-#                flag=False
+            flag  = False   
+        # Uncomment for challenge_video.mp4 sample, needs to fix bug with left line for this sample.
+        #if self.n_buffered:
+        #    relative_delta = self.diffs / self.avg_fit_coeffs
+        #    # allow maximally this percentage of variation in the fit coefficients from frame to frame
+        #    if not (abs(relative_delta) < np.array([0.7,0.5,0.15])).all():
+        #        print('fit coeffs too far off [%]',relative_delta)
+        #        flag=False
             
         return flag
         

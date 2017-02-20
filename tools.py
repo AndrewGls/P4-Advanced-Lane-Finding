@@ -110,6 +110,9 @@ def binarize(img,
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV).astype(np.float)
 #    s_channel = hsv[:,:,1]
     v_channel = hsv[:,:,2]
+
+    l_channel = (l_channel - np.min(l_channel)) * 255. / (np.max(l_channel) - np.min(l_channel))
+    v_channel = (v_channel - np.min(v_channel)) * 255. / (np.max(v_channel) - np.min(v_channel))
     
     # Sobel x
     sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0, ksize=ksize_sx) # Take the derivative in x
@@ -120,6 +123,14 @@ def binarize(img,
     sxbinary = np.zeros_like(scaled_sobel)
     sxbinary[(scaled_sobel >= sx_thresh[0]) & (scaled_sobel <= sx_thresh[1])] = 1
     
+    # Filtering of gradiens (commented): remove all gradients which are not a part of lane lines.
+    # The hard coded threshold value must be replaced by the value 0.8 * mean, where
+    # mean is a mean value of the road area, used for lane detection.
+    # Or use local thresholding - measure local mean value in each point of sxbinary, using some small area,
+    # and filter gradients if local mean value is less that mean vaLue in the road area.
+    # See challenge_video.mp4 sample - to remove black lines on the road.
+    sxbinary[(v_channel < 137)] = 0
+             
     # Threshold color channel
     s_binary = np.zeros_like(s_channel)
     s_binary[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 1
